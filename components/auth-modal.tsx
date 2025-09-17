@@ -110,7 +110,7 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }: AuthModalProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-center">Entrar no MotoClima</DialogTitle>
+          <DialogTitle className="text-center">Entrar no RotaLivre</DialogTitle>
         </DialogHeader>
 
         <Tabs defaultValue="login" className="w-full">

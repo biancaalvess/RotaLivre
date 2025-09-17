@@ -1,0 +1,309 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Search as SearchIcon,
+  Navigation,
+  MapPin,
+  Route,
+  Clock,
+  Car,
+  Bike,
+  User,
+  Target,
+  ArrowUp,
+  AlertTriangle,
+  Thermometer,
+  Eye,
+  CloudRain,
+  Cloud,
+  Fuel,
+  Bed,
+  X,
+  ArrowUpDown,
+  Crosshair,
+  RefreshCw,
+  Phone,
+  Globe,
+  Star,
+  MapPin as MapPinIcon,
+} from "lucide-react";
+import { useMap } from "@/hooks/useMap";
+import { useSerpApi } from "@/hooks/useSerpApi";
+import { SerpApiPlace } from "@/lib/serpapi";
+
+interface MainMapProps {
+  userLocation: { lat: number; lon: number } | null;
+}
+
+export function MainMap({ userLocation }: MainMapProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [destination, setDestination] = useState("");
+  const [routeInfo, setRouteInfo] = useState<any>(null);
+  const { mapRef } = useMap();
+
+  // Usar o hook da API do SerpAPI
+  const {
+    gasStations,
+    accommodations,
+    mechanics,
+    restaurants,
+    pharmacies,
+    loading,
+    error,
+    searchPlaces,
+    refreshData,
+  } = useSerpApi(userLocation);
+
+  // Simulação de dados de rota
+  useEffect(() => {
+    if (destination) {
+      setRouteInfo({
+        distance: "2.3 km",
+        duration: "8 min",
+        cost: "$6-8",
+        traffic: "Baixo",
+        weather_alert: "Chuva leve em 30min",
+        fuel_consumption: "1.2L/100km",
+        alternatives: [
+          { type: "car", duration: "6 min", cost: "$8-12" },
+          { type: "bike", duration: "12 min" },
+          { type: "walk", duration: "28 min", distance: "2.3 km" },
+        ],
+      });
+    }
+  }, [destination]);
+
+  // Função para buscar lugares por categoria
+  const handleSearchCategory = async (category: string) => {
+    if (userLocation) {
+      await searchPlaces(category, userLocation.lat, userLocation.lon);
+    }
+  };
+
+  // Função para abrir no Google Maps
+  const openInGoogleMaps = (place: SerpApiPlace) => {
+    const { latitude, longitude } = place.gps_coordinates;
+    const url = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+    window.open(url, "_blank");
+  };
+
+  // Função para fazer ligação
+  const makePhoneCall = (phone: string) => {
+    window.open(`tel:${phone}`, "_self");
+  };
+
+  // Função para abrir website
+  const openWebsite = (url: string) => {
+    window.open(url, "_blank");
+  };
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Search Bar - Mobile First */}
+      <div className="p-3 sm:p-4 bg-white/95 backdrop-blur-sm border-b border-gray-200">
+        <div className="flex flex-col gap-3">
+          {/* Origin Input */}
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 bg-gray-300 rounded-full border-2 border-dashed border-gray-400"></div>
+            <Input
+              placeholder="Minha localização atual"
+              value="Localização atual"
+              className="pl-10 pr-12 text-sm bg-white/80 border-gray-200 h-12"
+              readOnly
+            />
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <X className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <ArrowUpDown className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Destination Input */}
+          <div className="relative">
+            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 bg-purple-500 rounded-full"></div>
+            <Input
+              placeholder="Para onde você quer ir?"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 pr-12 text-sm bg-white/80 border-gray-200 h-12"
+            />
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content - Mobile First */}
+      <div className="flex-1 flex flex-col">
+        {/* Map Container - Google Maps Real */}
+        <div className="flex-1 relative bg-gray-100">
+          {/* Google Maps Embed */}
+          <div className="absolute inset-0">
+            <iframe
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d235203.81500692177!2d-43.58841988251077!3d-22.9111720903467!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x9bde559108a05b%3A0x50dc426c672fd24e!2sRio+de+Janeiro%2C+RJ!5e0!3m2!1spt-BR!2sbr!4v1476880758681"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="Google Maps - RotaLivre"
+            ></iframe>
+          </div>
+
+          {/* Current Location Badge */}
+          {userLocation && (
+            <div className="absolute top-4 right-4 z-10">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-10 w-10 p-0 rounded-full shadow-lg bg-white border border-gray-200"
+                onClick={() => refreshData()}
+                disabled={loading}
+              >
+                {loading ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Crosshair className="w-5 h-5" />
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* Route Info Overlay - Mobile Style */}
+          {routeInfo && (
+            <div className="absolute bottom-4 left-4 right-4 z-10">
+              <Card className="bg-white/95 backdrop-blur-sm border-0 shadow-xl">
+                <CardContent className="p-4">
+                  {/* Main Route Info */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <Car className="w-6 h-6 text-gray-600" />
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">4 min</p>
+                      <p className="text-xs text-gray-500">Carro</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <Bike className="w-6 h-6 text-gray-600" />
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">7 min</p>
+                      <p className="text-xs text-gray-500">Bicicleta</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                        <User className="w-6 h-6 text-gray-600" />
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">10 min</p>
+                      <p className="text-xs text-gray-500">A pé</p>
+                    </div>
+                  </div>
+
+                  {/* Selected Route - Purple Bar */}
+                  <div className="bg-purple-600 rounded-lg p-3 text-white">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <User className="w-5 h-5" />
+                        <div>
+                          <p className="font-medium">10 min</p>
+                          <p className="text-xs text-purple-200">0.8 km</p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-white hover:bg-purple-700"
+                      >
+                        <ArrowUp className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+
+        {/* Minimalist Info Section Below Map - Mobile First */}
+        <div className="bg-white border-t border-gray-200">
+          <div className="p-4">
+            {/* Quick Stats Row - Apenas as 3 informações essenciais */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="text-center">
+                <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Thermometer className="w-6 h-6 text-blue-600" />
+                </div>
+                <p className="text-2xl font-bold text-gray-900">24°</p>
+                <p className="text-xs text-gray-500">Temperatura</p>
+              </div>
+              <div className="text-center">
+                <div className="w-12 h-12 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <Eye className="w-6 h-6 text-green-600" />
+                </div>
+                <p className="text-2xl font-bold text-gray-900">10km</p>
+                <p className="text-xs text-gray-500">Visibilidade</p>
+              </div>
+              <div className="text-center">
+                <div className="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <CloudRain className="w-6 h-6 text-orange-600" />
+                </div>
+                <p className="text-2xl font-bold text-gray-900">30%</p>
+                <p className="text-xs text-gray-500">Chuva</p>
+              </div>
+            </div>
+
+            {/* Error Display */}
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 h-11"
+                onClick={() => handleSearchCategory("posto de gasolina")}
+                disabled={loading}
+              >
+                <Fuel className="w-4 h-4 mr-2" />
+                {loading ? "Carregando..." : "Postos"}
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1 h-11"
+                onClick={() => handleSearchCategory("hotel pousada")}
+                disabled={loading}
+              >
+                <Bed className="w-4 h-4 mr-2" />
+                {loading ? "Carregando..." : "Hospedagem"}
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1 h-11"
+                onClick={() => handleSearchCategory("oficina mecânica")}
+                disabled={loading}
+              >
+                <Cloud className="w-4 h-4 mr-2" />
+                {loading ? "Carregando..." : "Oficinas"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

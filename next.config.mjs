@@ -9,6 +9,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Configuração para APIs externas
+  serverExternalPackages: [],
 }
 
 export default nextConfig
