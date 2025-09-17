@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useMap } from "@/hooks/useMap";
 import { useSerpApi } from "@/hooks/useSerpApi";
+import { useLocation } from "@/hooks/useLocation";
 import { SerpApiPlace } from "@/lib/serpapi";
 
 interface MainMapProps {
@@ -59,6 +60,15 @@ export function MainMap({ userLocation }: MainMapProps) {
     refreshData,
   } = useSerpApi(userLocation);
 
+  // Usar o hook da API de localização
+  const {
+    locationDetails,
+    loading: locationLoading,
+    error: locationError,
+    updateLocation,
+    searchAddress,
+  } = useLocation(userLocation);
+
   // Simulação de dados de rota
   useEffect(() => {
     if (destination) {
@@ -82,6 +92,27 @@ export function MainMap({ userLocation }: MainMapProps) {
   const handleSearchCategory = async (category: string) => {
     if (userLocation) {
       await searchPlaces(category, userLocation.lat, userLocation.lon);
+    }
+  };
+
+  // Função para buscar endereços
+  const handleAddressSearch = async () => {
+    if (searchQuery.trim()) {
+      // Primeiro tentar buscar como endereço
+      const addressResults = await searchAddress(searchQuery.trim());
+      if (addressResults.length > 0) {
+        // Se encontrou endereços, usar o primeiro
+        const firstResult = addressResults[0];
+        await updateLocation(firstResult.lat, firstResult.lng);
+        setSearchQuery(""); // Limpar o campo de busca
+      } else {
+        // Se não encontrou endereços, buscar como lugares
+        await searchPlaces(
+          searchQuery.trim(),
+          userLocation?.lat || 0,
+          userLocation?.lon || 0
+        );
+      }
     }
   };
 
@@ -133,11 +164,18 @@ export function MainMap({ userLocation }: MainMapProps) {
               placeholder="Para onde você quer ir?"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={(e) => e.key === "Enter" && handleAddressSearch()}
               className="pl-10 pr-12 text-sm bg-white/80 border-gray-200 h-12"
             />
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <X className="w-4 h-4" />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={handleAddressSearch}
+                disabled={loading || locationLoading}
+              >
+                <SearchIcon className="w-4 h-4" />
               </Button>
             </div>
           </div>
@@ -178,6 +216,27 @@ export function MainMap({ userLocation }: MainMapProps) {
                   <Crosshair className="w-5 h-5" />
                 )}
               </Button>
+            </div>
+          )}
+
+          {/* Location Information */}
+          {locationDetails && (
+            <div className="absolute bottom-4 left-4 right-4 z-10">
+              <Card className="bg-white/95 backdrop-blur-sm">
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-primary" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {locationDetails.cityState}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {locationDetails.address}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
 
