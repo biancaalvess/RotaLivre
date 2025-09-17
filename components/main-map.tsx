@@ -35,6 +35,9 @@ import {
 import { useMap } from "@/hooks/useMap";
 import { useSerpApi } from "@/hooks/useSerpApi";
 import { useLocation } from "@/hooks/useLocation";
+import { useSearch, SearchResult } from "@/hooks/useSearch";
+import { SearchBar } from "@/components/search-bar";
+import { SearchResults } from "@/components/search-results";
 import { SerpApiPlace } from "@/lib/serpapi";
 
 interface MainMapProps {
@@ -45,9 +48,11 @@ export function MainMap({ userLocation }: MainMapProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [destination, setDestination] = useState("");
   const [routeInfo, setRouteInfo] = useState<any>(null);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [showSearchResults, setShowSearchResults] = useState(false);
   const { mapRef } = useMap();
 
-  // Usar o hook da API do SerpAPI
+  // Usar o hook da API do SerpAPI (mantido para compatibilidade)
   const {
     gasStations,
     accommodations,
@@ -59,6 +64,15 @@ export function MainMap({ userLocation }: MainMapProps) {
     searchPlaces,
     refreshData,
   } = useSerpApi(userLocation);
+
+  // Usar o novo hook de busca
+  const {
+    results: newSearchResults,
+    loading: searchLoading,
+    error: searchError,
+    search: performSearch,
+    searchByCategory: performCategorySearch,
+  } = useSearch();
 
   // Usar o hook da API de localização
   const {
@@ -91,8 +105,32 @@ export function MainMap({ userLocation }: MainMapProps) {
   // Função para buscar lugares por categoria
   const handleSearchCategory = async (category: string) => {
     if (userLocation) {
-      await searchPlaces(category, userLocation.lat, userLocation.lon);
+      await performCategorySearch(
+        category,
+        userLocation.lat,
+        userLocation.lon,
+        5
+      );
+      setShowSearchResults(true);
     }
+  };
+
+  // Função para lidar com resultados de busca
+  const handleSearchResults = (results: SearchResult[]) => {
+    setSearchResults(results);
+    setShowSearchResults(true);
+  };
+
+  // Função para selecionar localização no mapa
+  const handleLocationSelect = (lat: number, lng: number) => {
+    // Aqui você pode adicionar lógica para centralizar o mapa na localização
+    console.log("Localização selecionada:", lat, lng);
+  };
+
+  // Função para navegar para localização
+  const handleNavigate = (lat: number, lng: number) => {
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+    window.open(url, "_blank");
   };
 
   // Função para buscar endereços
@@ -137,49 +175,12 @@ export function MainMap({ userLocation }: MainMapProps) {
     <div className="h-full flex flex-col">
       {/* Search Bar - Mobile First */}
       <div className="p-3 sm:p-4 bg-white/95 backdrop-blur-sm border-b border-gray-200">
-        <div className="flex flex-col gap-3">
-          {/* Origin Input */}
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 bg-gray-300 rounded-full border-2 border-dashed border-gray-400"></div>
-            <Input
-              placeholder="Minha localização atual"
-              value="Localização atual"
-              className="pl-10 pr-12 text-sm bg-white/80 border-gray-200 h-12"
-              readOnly
-            />
-            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center gap-2">
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <X className="w-4 h-4" />
-              </Button>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <ArrowUpDown className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Destination Input */}
-          <div className="relative">
-            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 bg-purple-500 rounded-full"></div>
-            <Input
-              placeholder="Para onde você quer ir?"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={(e) => e.key === "Enter" && handleAddressSearch()}
-              className="pl-10 pr-12 text-sm bg-white/80 border-gray-200 h-12"
-            />
-            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={handleAddressSearch}
-                disabled={loading || locationLoading}
-              >
-                <SearchIcon className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+        <SearchBar
+          onSearchResults={handleSearchResults}
+          onLocationSelect={handleLocationSelect}
+          userLocation={userLocation}
+          className="w-full"
+        />
       </div>
 
       {/* Main Content - Mobile First */}
@@ -199,6 +200,21 @@ export function MainMap({ userLocation }: MainMapProps) {
               title="Google Maps - RotaLivre"
             ></iframe>
           </div>
+
+          {/* Search Results Overlay */}
+          {showSearchResults &&
+            (searchResults.length > 0 || newSearchResults.length > 0) && (
+              <div className="absolute top-4 left-4 right-4 z-20 max-h-96 overflow-y-auto">
+                <SearchResults
+                  results={
+                    searchResults.length > 0 ? searchResults : newSearchResults
+                  }
+                  onLocationSelect={handleLocationSelect}
+                  onNavigate={handleNavigate}
+                  className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg"
+                />
+              </div>
+            )}
 
           {/* Current Location Badge */}
           {userLocation && (
@@ -324,9 +340,9 @@ export function MainMap({ userLocation }: MainMapProps) {
             </div>
 
             {/* Error Display */}
-            {error && (
+            {(error || searchError) && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-800">{error}</p>
+                <p className="text-sm text-red-800">{error || searchError}</p>
               </div>
             )}
 
@@ -335,29 +351,29 @@ export function MainMap({ userLocation }: MainMapProps) {
               <Button
                 variant="outline"
                 className="flex-1 h-11"
-                onClick={() => handleSearchCategory("posto de gasolina")}
-                disabled={loading}
+                onClick={() => handleSearchCategory("gasolina")}
+                disabled={loading || searchLoading}
               >
                 <Fuel className="w-4 h-4 mr-2" />
-                {loading ? "Carregando..." : "Postos"}
+                {loading || searchLoading ? "Carregando..." : "Postos"}
               </Button>
               <Button
                 variant="outline"
                 className="flex-1 h-11"
-                onClick={() => handleSearchCategory("hotel pousada")}
-                disabled={loading}
+                onClick={() => handleSearchCategory("hospedagem")}
+                disabled={loading || searchLoading}
               >
                 <Bed className="w-4 h-4 mr-2" />
-                {loading ? "Carregando..." : "Hospedagem"}
+                {loading || searchLoading ? "Carregando..." : "Hospedagem"}
               </Button>
               <Button
                 variant="outline"
                 className="flex-1 h-11"
-                onClick={() => handleSearchCategory("oficina mecânica")}
-                disabled={loading}
+                onClick={() => handleSearchCategory("oficina")}
+                disabled={loading || searchLoading}
               >
                 <Cloud className="w-4 h-4 mr-2" />
-                {loading ? "Carregando..." : "Oficinas"}
+                {loading || searchLoading ? "Carregando..." : "Oficinas"}
               </Button>
             </div>
           </div>
