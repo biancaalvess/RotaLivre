@@ -43,36 +43,31 @@ export interface SerpApiSearchResult {
 
 export class SerpApiService {
   private static async makeRequest(params: Record<string, string>): Promise<SerpApiSearchResult> {
-    // Verificar se a chave da API está configurada
-    if (!SERPAPI_KEY || SERPAPI_KEY === 'your_serpapi_key_here') {
-      console.warn('SerpAPI key not configured. Using mock data.');
-      return this.getMockData(params);
-    }
-
-    const searchParams = new URLSearchParams({
-      api_key: SERPAPI_KEY,
-      engine: 'google_maps',
-      google_domain: 'google.com',
-      hl: 'pt',
-      gl: 'br',
-      ...params
-    });
-
     try {
-      const response = await fetch(`${SERPAPI_BASE_URL}?${searchParams}`, {
+      const searchParams = new URLSearchParams(params);
+      const response = await fetch(`/api/serpapi?${searchParams}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
         },
-        // Adicionar timeout para evitar travamentos
-        signal: AbortSignal.timeout(10000) // 10 segundos
+        signal: AbortSignal.timeout(10000) // 10 segundos para API route
       });
       
       if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error('Rate limit exceeded. Please try again later.');
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
+      
+      // Se retornou dados mock, usar os dados mock locais
+      if (data.mockData || data.error) {
+        console.warn('Using mock data due to API error:', data.error);
+        return this.getMockData(params);
+      }
+      
       return data;
     } catch (error) {
       console.error('SerpAPI request failed:', error);
@@ -201,7 +196,7 @@ export class SerpApiService {
     try {
       const result = await this.makeRequest(params);
       return result.place_results || [];
-    } catch ( error) {
+    } catch (error) {
       console.error('Failed to search restaurants:', error);
       return [];
     }

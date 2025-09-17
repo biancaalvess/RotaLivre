@@ -23,38 +23,111 @@ export function useSerpApi(
   const [pharmacies, setPharmacies] = useState<SerpApiPlace[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastSearchLocation, setLastSearchLocation] = useState<string>('');
+  const [searchTimeout, setSearchTimeout] = useState<NodeJS.Timeout | null>(null);
 
   // Função para buscar todos os tipos de lugares
   const searchAllPlaces = useCallback(async (lat: number, lng: number) => {
     if (!lat || !lng) return;
 
+    // Verificar cache - se já buscamos para esta localização recentemente, não buscar novamente
+    const cacheKey = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+    if (lastSearchLocation === cacheKey && (gasStations.length > 0 || accommodations.length > 0)) {
+      return; // Já temos dados para esta localização
+    }
+
     setLoading(true);
     setError(null);
+    setLastSearchLocation(cacheKey);
 
     try {
-      // Buscar em paralelo para melhor performance
-      const [
-        gasResults,
-        accommodationResults,
-        mechanicResults,
-        restaurantResults,
-        pharmacyResults
-      ] = await Promise.all([
-        SerpApiService.searchGasStations(lat, lng, '5km'),
-        SerpApiService.searchAccommodations(lat, lng, '10km'),
-        SerpApiService.searchMechanics(lat, lng, '5km'),
-        SerpApiService.searchRestaurants(lat, lng, '3km'),
-        SerpApiService.searchPharmacies(lat, lng, '3km')
-      ]);
+      // Buscar apenas postos de gasolina para reduzir chamadas da API
+      const gasResults = await SerpApiService.searchGasStations(lat, lng, '5km');
+      
+      // Usar dados mock para outras categorias para reduzir rate limits
+      const mockAccommodations: SerpApiPlace[] = [
+        {
+          position: 1,
+          title: 'Hotel Pousada - Exemplo',
+          place_id: 'mock_hotel_1',
+          rating: 4.2,
+          reviews: 45,
+          price: '$$',
+          type: 'business',
+          address: 'Rua das Flores, 123',
+          open_state: 'Open now',
+          phone: '(11) 99999-9999',
+          website: 'https://example.com',
+          gps_coordinates: { latitude: lat + 0.001, longitude: lng + 0.001 }
+        }
+      ];
+
+      const mockMechanics: SerpApiPlace[] = [
+        {
+          position: 1,
+          title: 'Oficina Mecânica - Exemplo',
+          place_id: 'mock_mech_1',
+          rating: 4.5,
+          reviews: 78,
+          price: '$$',
+          type: 'business',
+          address: 'Av. Principal, 456',
+          open_state: 'Open now',
+          phone: '(11) 88888-8888',
+          website: 'https://example.com',
+          gps_coordinates: { latitude: lat - 0.001, longitude: lng - 0.001 }
+        }
+      ];
+
+      const mockRestaurants: SerpApiPlace[] = [
+        {
+          position: 1,
+          title: 'Restaurante - Exemplo',
+          place_id: 'mock_rest_1',
+          rating: 4.0,
+          reviews: 32,
+          price: '$',
+          type: 'business',
+          address: 'Rua do Comércio, 789',
+          open_state: 'Open now',
+          phone: '(11) 77777-7777',
+          website: 'https://example.com',
+          gps_coordinates: { latitude: lat + 0.002, longitude: lng - 0.002 }
+        }
+      ];
+
+      const mockPharmacies: SerpApiPlace[] = [
+        {
+          position: 1,
+          title: 'Farmácia - Exemplo',
+          place_id: 'mock_pharm_1',
+          rating: 4.3,
+          reviews: 56,
+          price: '$$',
+          type: 'business',
+          address: 'Praça Central, 321',
+          open_state: 'Open now',
+          phone: '(11) 66666-6666',
+          website: 'https://example.com',
+          gps_coordinates: { latitude: lat - 0.002, longitude: lng + 0.002 }
+        }
+      ];
 
       setGasStations(gasResults);
-      setAccommodations(accommodationResults);
-      setMechanics(mechanicResults);
-      setRestaurants(restaurantResults);
-      setPharmacies(pharmacyResults);
+      setAccommodations(mockAccommodations);
+      setMechanics(mockMechanics);
+      setRestaurants(mockRestaurants);
+      setPharmacies(mockPharmacies);
 
     } catch (err) {
-      setError('Erro ao buscar lugares próximos. Tente novamente.');
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao buscar lugares próximos.';
+      if (errorMessage.includes('Rate limit exceeded')) {
+        setError('Muitas requisições. Aguarde um momento e tente novamente.');
+      } else if (errorMessage.includes('timeout')) {
+        setError('Tempo limite excedido. Verifique sua conexão e tente novamente.');
+      } else {
+        setError('Erro ao buscar lugares próximos. Tente novamente.');
+      }
       console.error('Error searching places:', err);
     } finally {
       setLoading(false);
@@ -120,15 +193,31 @@ export function useSerpApi(
     }
   }, [userLocation, searchAllPlaces]);
 
-  // Efeito para buscar lugares quando a localização do usuário mudar
+  // Efeito para buscar lugares quando a localização do usuário mudar (com debounce)
   useEffect(() => {
     if (userLocation) {
-      // Usar catch para evitar promises não tratadas
-      searchAllPlaces(userLocation.lat, userLocation.lon).catch((error) => {
-        console.error('Erro ao buscar lugares:', error);
-        setError('Erro ao carregar dados. Tente novamente.');
-        setLoading(false);
-      });
+      // Limpar timeout anterior
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+      }
+
+      // Criar novo timeout para debounce
+      const timeout = setTimeout(() => {
+        searchAllPlaces(userLocation.lat, userLocation.lon).catch((error) => {
+          console.error('Erro ao buscar lugares:', error);
+          setError('Erro ao carregar dados. Tente novamente.');
+          setLoading(false);
+        });
+      }, 2000); // Aguardar 2 segundos antes de fazer a busca
+
+      setSearchTimeout(timeout);
+
+      // Cleanup function
+      return () => {
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+      };
     }
   }, [userLocation, searchAllPlaces]);
 
